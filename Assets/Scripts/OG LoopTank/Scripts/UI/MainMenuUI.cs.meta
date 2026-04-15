@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 84c06e54ccf248d4a9327bbde5da97d2
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Scripts/UI/MainMenuUI.cs
+  uploadId: 734005

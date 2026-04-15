@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: ae14c675c919e0547823f1c95c748051
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Scripts/Gameplay/CameraFollow.cs
+  uploadId: 734005
