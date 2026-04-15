@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 992049f2ca14f1d4788ea082645beb5d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 260024
+  packageName: Fill Shader
+  packageVersion: 1.0.0
+  assetPath: Assets/NnUtils/Materials/Fill Shader.mat
+  uploadId: 598952

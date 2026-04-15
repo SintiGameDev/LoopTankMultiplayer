@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 763baea0e9044b542acf26d0a96624ca
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 6200000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Art/Materials/car-1.physicsMaterial2D
+  uploadId: 734005

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: b9dc1c8d2259fb94c9a3610160bd2440
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 260024
+  packageName: Fill Shader
+  packageVersion: 1.0.0
+  assetPath: Assets/NnUtils/Scenes/Fill Shader Sample.unity
+  uploadId: 598952

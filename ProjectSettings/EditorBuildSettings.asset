@@ -6,8 +6,10 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
-  m_configObjects:
-    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+    path: Assets/TopDownRace/Scenes/FINAL.unity
+    guid: b858f6f6b851b6740b6b7a029846159e
+  - enabled: 0
+    path: Assets/TopDownRace/Scenes/MERGED_v01.unity
+    guid: bf51d6db7123ccf48842808d7ff58805
+  m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

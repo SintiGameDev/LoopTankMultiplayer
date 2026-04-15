@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2bdec41ae30fa514f862fde29936016d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 7400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Art/Animations/tier-mark-1.anim
+  uploadId: 734005
