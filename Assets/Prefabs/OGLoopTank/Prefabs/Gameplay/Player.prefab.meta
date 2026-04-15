@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 4441d6191402f15489c7d852adc31f9b
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/Gameplay/Player.prefab
+  uploadId: 734005

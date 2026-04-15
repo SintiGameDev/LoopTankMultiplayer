@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 877c0928729384142930838159951503
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/Gameplay/InputControl.prefab
+  uploadId: 734005

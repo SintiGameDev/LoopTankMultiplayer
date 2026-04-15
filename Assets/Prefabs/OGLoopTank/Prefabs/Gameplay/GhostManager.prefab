@@ -1,0 +1,74 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3151887228528347699
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3151887228528347709}
+  - component: {fileID: 3151887228528347698}
+  - component: {fileID: 7488625345719104785}
+  m_Layer: 0
+  m_Name: GhostManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3151887228528347709
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3151887228528347699}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3151887228528347698
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3151887228528347699}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 13a1488024e99044e8a6da7151a39600, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Movement: {x: 0, y: 0, z: 0}
+--- !u!114 &7488625345719104785
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3151887228528347699}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fded19dde7ef2e94889bc30bf7a91a94, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lapStatusText: {fileID: 0}
+  lastLapTimeText: {fileID: 0}
+  playerRecorder: {fileID: -297547805703134724, guid: 4441d6191402f15489c7d852adc31f9b, type: 3}
+  ghostPrefab: {fileID: 6258295094829372238, guid: 2d4e3b2e78048d543af2315db7419e4b, type: 3}
+  ghostParent: {fileID: 0}
+  mode: 1
+  lapStatusDisplayTime: 3
+  lapStatusFadeDuration: 0.5
+  lastLapTimeDisplayTime: 3
+  lastLapTimeFadeDuration: 0.5
+  maxGhosts: 2
+  m_LapFinishedSound: {fileID: 0}
+  m_LapFinishedVolume: 1
+  roundTimer: {fileID: 0}

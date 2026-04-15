@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: e3e316b6b32e0dd498ebc3fb2003f777
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/Particles/TireTracks.prefab
+  uploadId: 734005

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a021654d626ffe24d91719bf9d7396c0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/ScriptableObjects/GameplayData.asset
+  uploadId: 734005

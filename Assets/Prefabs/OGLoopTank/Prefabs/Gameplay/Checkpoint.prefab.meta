@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: add96481182103d4cac11b3b73a803e4
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/Gameplay/Checkpoint.prefab
+  uploadId: 734005

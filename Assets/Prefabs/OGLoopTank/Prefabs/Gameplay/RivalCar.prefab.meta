@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 482d4be288d355d46b23e750b47353ef
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/Gameplay/RivalCar.prefab
+  uploadId: 734005

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 3cd6450d50563544a993563da09d46d4
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/UI/MainMenu.prefab
+  uploadId: 734005

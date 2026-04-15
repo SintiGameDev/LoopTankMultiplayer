@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 29a5fc35d22a31c4e85e218bb8efd1f0
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/Gameplay/Road-2.prefab
+  uploadId: 734005

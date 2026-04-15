@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: a3d38e52f3cc07040804e0f4ce79b6a5
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/Gameplay/Plant-3.prefab
+  uploadId: 734005

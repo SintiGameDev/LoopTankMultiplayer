@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 25135463cf04bcb4ea153fb181acb414
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 310949
+  packageName: Top Down Race 2D - Game Template
+  packageVersion: 1.0
+  assetPath: Assets/TopDownRace/Prefabs/Particles/Smoke.prefab
+  uploadId: 734005
