@@ -251,62 +251,8 @@ public static class LoopTankSetup
 
     private static void RennSzeneEinrichten(GameObject tank)
     {
-        var szene = EditorSceneManager.OpenScene(RennPfad, OpenSceneMode.Single);
-
-        // Reste des alten Multiplayer-Versuchs (Lobby-Overlay, leere Manager-Huellen).
-        foreach (GameObject wurzel in szene.GetRootGameObjects())
-        {
-            if (wurzel.name == "Multiplayer Setup") Object.DestroyImmediate(wurzel);
-        }
-        foreach (GameObject wurzel in szene.GetRootGameObjects())
-        {
-            foreach (Transform t in wurzel.GetComponentsInChildren<Transform>(true))
-                GameObjectUtility.RemoveMonoBehavioursWithMissingScript(t.gameObject);
-        }
-
-        // Rennleitung als festes Netzwerk-Objekt der Szene.
-        var leitung = Object.FindFirstObjectByType<GameControl>(FindObjectsInactive.Include);
-        if (leitung == null)
-        {
-            leitung = new GameObject("GameControl").AddComponent<GameControl>();
-            leitung.m_levelRounds = 99;
-        }
-        GameObject leitungObjekt = leitung.gameObject;
-        if (PrefabUtility.IsPartOfPrefabInstance(leitungObjekt))
-        {
-            PrefabUtility.UnpackPrefabInstance(PrefabUtility.GetOutermostPrefabInstanceRoot(leitungObjekt), PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
-        }
-        Sicherstellen<NetworkObject>(leitungObjekt);
-        leitung.m_PlayerCarPrefab = tank;
-        leitung.m_CameraFollow = Object.FindFirstObjectByType<CameraFollow>(FindObjectsInactive.Include);
-        EditorUtility.SetDirty(leitung);
-
-        // Verweise auf Prefabs, die erst zur Laufzeit durch echte Panzer ersetzt werden.
-        if (leitung.m_CameraFollow != null)
-        {
-            var kameraSo = new SerializedObject(leitung.m_CameraFollow);
-            kameraSo.FindProperty("m_Target").objectReferenceValue = null;
-            kameraSo.ApplyModifiedPropertiesWithoutUndo();
-        }
-        var ghosts = Object.FindFirstObjectByType<GhostManager>(FindObjectsInactive.Include);
-        if (ghosts != null)
-        {
-            ghosts.playerRecorder = null;
-            EditorUtility.SetDirty(ghosts);
-        }
-
-        if (Object.FindFirstObjectByType<RennHud>(FindObjectsInactive.Include) == null)
-        {
-            new GameObject("RennHud").AddComponent<RennHud>();
-        }
-
-        EditorSceneManager.MarkSceneDirty(szene);
-        EditorSceneManager.SaveScene(szene);
-
-        // Erst nach dem Speichern hat das Szenenobjekt eine stabile ID.
-        NetzwerkIdAktualisieren(leitungObjekt.GetComponent<NetworkObject>());
-        EditorSceneManager.MarkSceneDirty(szene);
-        EditorSceneManager.SaveScene(szene);
+        // Die Umstellung der Rennszene hat ein eigenes Script, das auch einzeln im Menue haengt.
+        RennSzeneUmstellen.Umstellen();
     }
 
     private static void BuildSettingsSetzen()
