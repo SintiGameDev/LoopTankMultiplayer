@@ -16,12 +16,14 @@ public class LobbyManager : MonoBehaviour
     [SerializeField] private Button buttonHost;
     [SerializeField] private Button buttonJoin;
     [SerializeField] private Button buttonStop;
+    [SerializeField] private Button buttonStartRace; // Nur für Host sichtbar
 
     [Header("UI Felder")]
     [SerializeField] private TMP_InputField joinCodeEingabe;
     [SerializeField] private TextMeshProUGUI joinCodeAnzeige;
     [SerializeField] private TextMeshProUGUI statusAnzeige;
     [SerializeField] private TextMeshProUGUI fehlerAnzeige;
+    [SerializeField] private TextMeshProUGUI spielerAnzahlAnzeige;
 
     [Header("Lobby Panel")]
     [SerializeField] private GameObject lobbyPanel;
@@ -29,21 +31,64 @@ public class LobbyManager : MonoBehaviour
     [Header("Einstellungen")]
     [SerializeField] private int maxSpieler = 4;
 
+    [Header("Szene")]
+    [Tooltip("Exakter Name der Rennszene (wie in den Build Settings eingetragen).")]
+    [SerializeField] private string rennSzenenName = "RaceScene";
+
     // Aktueller Relay Code fuer Debug UI
     public static string AktuellerJoinCode { get; private set; } = "";
+
+    private bool istHost = false;
 
     private async void Start()
     {
         buttonHost.onClick.AddListener(HostStarten);
         buttonJoin.onClick.AddListener(ClientVerbinden);
         buttonStop.onClick.AddListener(Beenden);
+        buttonStartRace.onClick.AddListener(RennenStarten);
+
+        // Start-Rennen-Button initial ausblenden
+        buttonStartRace.gameObject.SetActive(false);
 
         joinCodeAnzeige.text = "";
+        if (spielerAnzahlAnzeige != null) spielerAnzahlAnzeige.text = "";
         FehlerAusblenden();
         StatusSetzen("Verbinde mit Unity Services...");
         LobbyAnzeigen(true);
 
         await UnityServicesInitialisieren();
+
+        // Spielerzahl-Callback registrieren
+        NetworkManager.Singleton.OnClientConnectedCallback += OnSpielerVerbunden;
+        NetworkManager.Singleton.OnClientDisconnectCallback += OnSpielerGetrennt;
+    }
+
+    private void OnDestroy()
+    {
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnSpielerVerbunden;
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnSpielerGetrennt;
+        }
+    }
+
+    private void OnSpielerVerbunden(ulong clientId)
+    {
+        SpielerAnzahlAktualisieren();
+    }
+
+    private void OnSpielerGetrennt(ulong clientId)
+    {
+        SpielerAnzahlAktualisieren();
+    }
+
+    private void SpielerAnzahlAktualisieren()
+    {
+        if (spielerAnzahlAnzeige == null) return;
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening) return;
+
+        int anzahl = NetworkManager.Singleton.ConnectedClients.Count;
+        spielerAnzahlAnzeige.text = $"Spieler: {anzahl} / {maxSpieler}";
     }
 
     private async Task UnityServicesInitialisieren()
@@ -87,10 +132,18 @@ public class LobbyManager : MonoBehaviour
             transport.SetRelayServerData(relayData);
 
             NetworkManager.Singleton.StartHost();
+
+            istHost = true;
             joinCodeEingabe.gameObject.SetActive(false);
             buttonJoin.gameObject.SetActive(false);
+
+            // Start-Rennen-Button nur für Host einblenden
+            buttonStartRace.gameObject.SetActive(true);
+            buttonStartRace.interactable = true;
+
             LobbyAnzeigen(false);
             joinCodeAnzeige.gameObject.SetActive(true);
+            SpielerAnzahlAktualisieren();
         }
         catch (System.Exception e)
         {
@@ -105,7 +158,6 @@ public class LobbyManager : MonoBehaviour
     {
         string code = joinCodeEingabe.text.Trim().ToUpper();
 
-        // Fehler: Kein Code eingegeben
         if (string.IsNullOrEmpty(code))
         {
             FehlerZeigen("Bitte einen Join Code eingeben.");
@@ -128,16 +180,19 @@ public class LobbyManager : MonoBehaviour
 
             NetworkManager.Singleton.StartClient();
 
-            // Eingabefeld ausblenden nach erfolgreicher Verbindung
+            istHost = false;
             joinCodeEingabe.gameObject.SetActive(false);
             buttonJoin.gameObject.SetActive(false);
             LobbyAnzeigen(false);
+
+            // Client wartet – Szenenübergang kommt automatisch vom Host
+            StatusSetzen("Warte auf Spielstart...");
+            joinCodeAnzeige.gameObject.SetActive(true);
 
             Debug.Log("[LobbyManager] Client verbunden mit Code: " + code);
         }
         catch (System.Exception e)
         {
-            // Fehler: Code nicht gefunden oder abgelaufen
             StatusSetzen("Verbindung fehlgeschlagen.");
             FehlerZeigen("Code nicht gefunden oder abgelaufen. Bitte Code pruefen.");
             buttonJoin.interactable = true;
@@ -145,15 +200,45 @@ public class LobbyManager : MonoBehaviour
         }
     }
 
+    // Nur der Host darf diese Methode aufrufen
+    private void RennenStarten()
+    {
+        if (!NetworkManager.Singleton.IsHost)
+        {
+            Debug.LogWarning("[LobbyManager] Nur der Host kann das Rennen starten.");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(rennSzenenName))
+        {
+            FehlerZeigen("Kein Szenenname angegeben! Bitte im Inspector eintragen.");
+            Debug.LogError("[LobbyManager] rennSzenenName ist leer.");
+            return;
+        }
+
+        Debug.Log($"[LobbyManager] Host startet Rennen – lade Szene: {rennSzenenName}");
+        buttonStartRace.interactable = false;
+        StatusSetzen("Lade Rennen...");
+
+        // Lädt die Szene für alle verbundenen Clients gleichzeitig
+        NetworkManager.Singleton.SceneManager.LoadScene(rennSzenenName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+    }
+
     private void Beenden()
     {
         NetworkManager.Singleton.Shutdown();
         AktuellerJoinCode = "";
+        istHost = false;
+
         joinCodeAnzeige.text = "";
+        joinCodeAnzeige.gameObject.SetActive(true);
         joinCodeEingabe.gameObject.SetActive(true);
         buttonJoin.gameObject.SetActive(true);
+        buttonStartRace.gameObject.SetActive(false);
         buttonHost.interactable = true;
         buttonJoin.interactable = true;
+
+        if (spielerAnzahlAnzeige != null) spielerAnzahlAnzeige.text = "";
         FehlerAusblenden();
         StatusSetzen("Bereit.");
         LobbyAnzeigen(true);
