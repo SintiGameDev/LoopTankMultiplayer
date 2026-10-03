@@ -2,6 +2,7 @@ using UnityEngine;
 
 namespace TopDownRace
 {
+    /// <summary>Kamera der 2D-Rennszene: schaut von oben und eilt dem Panzer etwas voraus.</summary>
     public class CameraFollow : MonoBehaviour
     {
         private Vector3 m_Offset = new Vector3(0, 0, -10);
@@ -9,21 +10,21 @@ namespace TopDownRace
         private Vector3 m_Velocity = Vector3.zero;
 
         [SerializeField]
-        private Transform m_Target;
+        protected Transform m_Target;
 
-        void Awake()
+        protected virtual void Awake()
         {
             // Ein im Inspector eingetragenes Prefab ist kein Objekt der Szene, dem man folgen koennte.
             if (m_Target != null && !m_Target.gameObject.scene.IsValid()) m_Target = null;
         }
 
         /// <summary>Setzt das Ziel; wird von der Rennleitung aufgerufen, sobald die Panzer gespawnt sind.</summary>
-        public void SetTarget(Transform newTarget)
+        public virtual void SetTarget(Transform newTarget)
         {
             m_Target = newTarget;
         }
 
-        void FixedUpdate()
+        protected virtual void FixedUpdate()
         {
             if (m_Target == null)
             {

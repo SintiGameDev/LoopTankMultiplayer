@@ -58,6 +58,9 @@ namespace TopDownRace
         public NetworkVariable<int> SpielerAmStart = new NetworkVariable<int>(0);
         private NetworkVariable<double> m_StartZeit = new NetworkVariable<double>(0);
 
+        /// <summary>Seed der Strecke, falls sie zur Laufzeit erzeugt wird. Der Host legt ihn fest, alle bauen dieselbe Strecke.</summary>
+        public NetworkVariable<int> StreckenSeed = new NetworkVariable<int>(0);
+
         public const ulong KeinSieger = ulong.MaxValue;
 
         public bool IstEinzelspieler => SpielerAmStart.Value <= 1;
@@ -67,17 +70,23 @@ namespace TopDownRace
 
         private AusscheideGrund m_LokalerGrund;
         private bool m_ErgebnisGezeigt;
+        private bool m_Aufgedeckt;
+        private float m_SzenenStart;
 
         // Nur auf dem Host: wer ist noch im Rennen.
         private readonly HashSet<ulong> m_Lebende = new HashSet<ulong>();
 
         // Timer
         private Timer roundTimer;
+
+        /// <summary>Der Timer des lokalen Spielers (fuer das HUD).</summary>
+        public Timer RundenTimer => roundTimer;
         private float m_LapStartTime;
 
         private void Awake()
         {
             m_Current = this;
+            m_SzenenStart = Time.unscaledTime;
             PlayerCar.Alle.Clear();
         }
 
@@ -132,10 +141,28 @@ namespace TopDownRace
 
         public override void OnNetworkSpawn()
         {
+            StreckeVorbereiten();
+
             if (!IsServer) return;
 
             NetworkManager.SceneManager.OnLoadEventCompleted += OnSzeneFuerAlleGeladen;
             NetworkManager.OnClientDisconnectCallback += OnClientGetrennt;
+        }
+
+        /// <summary>
+        /// Baut die Strecke, falls der Generator der Szene auf "Zur Laufzeit erzeugen" steht.
+        /// Passiert hier, weil der Seed dann bei allen vorliegt und der Host die Panzer erst
+        /// danach auf die Startplaetze setzt.
+        /// </summary>
+        private void StreckeVorbereiten()
+        {
+            var generator = FindFirstObjectByType<StreckenGenerator>();
+            if (generator == null || !generator.m_ZurLaufzeitErzeugen) return;
+
+            if (IsServer)
+                StreckenSeed.Value = generator.m_ZufaelligerSeed ? new System.Random().Next(1, 1000000) : generator.m_Seed;
+
+            generator.Erzeugen(StreckenSeed.Value);
         }
 
         public override void OnNetworkDespawn()
@@ -152,14 +179,44 @@ namespace TopDownRace
         {
             if (szenenName != gameObject.scene.name || Phase.Value != RennPhase.Warten) return;
 
-            var startPositionen = RaceTrackControl.m_Main.m_StartPositions;
-            int slot = 0;
-            foreach (ulong clientId in NetworkManager.ConnectedClientsIds)
+            var strecke = RaceTrackControl.m_Main;
+            if (strecke == null || strecke.m_StartPositions == null || strecke.m_StartPositions.Length == 0)
             {
-                Transform platz = startPositionen[slot % startPositionen.Length];
-                GameObject panzer = Instantiate(m_PlayerCarPrefab, platz.position, platz.rotation);
-                panzer.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId, true);
-                panzer.GetComponent<PlayerCar>().SpielerSlot.Value = slot;
+                Debug.LogError("[GameControl] Die Strecke hat keine Startplätze, es werden keine Panzer gespawnt.");
+                return;
+            }
+
+            // Feste Reihenfolge (Host zuerst, dann nach Beitritt), damit jeder bei jedem Rennen
+            // einen eindeutigen Platz bekommt.
+            var teilnehmer = new List<ulong>(NetworkManager.ConnectedClientsIds);
+            teilnehmer.Sort();
+
+            int slot = 0;
+            foreach (ulong clientId in teilnehmer)
+            {
+                // Mehr Spieler als Startplaetze: weitere Reihen dahinter, statt zwei Panzer auf einen Platz zu stellen.
+                Transform platz = strecke.m_StartPositions[slot % strecke.m_StartPositions.Length];
+                int ueberzaehlig = slot / strecke.m_StartPositions.Length;
+                Vector3 zurueck = m_PlayerCarPrefab.GetComponent<Rigidbody>() != null ? platz.forward : platz.right;   // 3D: vorwaerts = Z, 2D: vorwaerts = X
+                Vector3 position = platz.position - zurueck * (ueberzaehlig * 40f);
+                Quaternion drehung = platz.rotation;
+
+                GameObject objekt = Instantiate(m_PlayerCarPrefab, position, drehung);
+                objekt.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId, true);
+
+                var panzer = objekt.GetComponent<PlayerCar>();
+                SpielerProfil.Eintrag profil = SpielerProfil.Fuer(clientId, slot);
+                panzer.SpielerSlot.Value = slot;
+                panzer.FarbIndex.Value = profil.Farbe;
+                panzer.SpielerName.Value = profil.Name;
+
+                // Der Startplatz geht ausdruecklich an den Besitzer: Nur er darf seinen Panzer bewegen
+                // und stellt ihn selbst dorthin (siehe PlayerCar.AufStartplatzSetzen).
+                panzer.StartPosition.Value = position;
+                panzer.StartDrehung.Value = drehung;
+                panzer.StartGesetzt.Value = true;
+                Debug.Log("[Start] Host stellt " + profil.Name + " (Client " + clientId + ") auf Platz " + (slot + 1) + " bei " + position);
+
                 m_Lebende.Add(clientId);
                 slot++;
             }
@@ -176,6 +233,14 @@ namespace TopDownRace
 
         void Update()
         {
+            // Der Ladebildschirm bleibt, bis die Panzer stehen und der Countdown beginnt. Nach 20 Sekunden
+            // gibt er das Bild in jedem Fall frei, damit ein Fehler beim Laden nicht hinter ihm verborgen bleibt.
+            if (!m_Aufgedeckt && ((IsSpawned && Phase.Value != RennPhase.Warten) || Time.unscaledTime - m_SzenenStart > 20f))
+            {
+                m_Aufgedeckt = true;
+                UiUebergang.Auf();
+            }
+
             if (!IsSpawned) return;
 
             switch (Phase.Value)
@@ -337,16 +402,16 @@ namespace TopDownRace
         {
             Phase.Value = RennPhase.Beendet;
 
-            int siegerSlot = -1;
+            string siegerName = "";
             foreach (var panzer in PlayerCar.Alle)
             {
-                if (panzer != null && panzer.OwnerClientId == sieger) siegerSlot = panzer.SpielerSlot.Value;
+                if (panzer != null && panzer.OwnerClientId == sieger) siegerName = panzer.AnzeigeName;
             }
-            RennEndeRpc(sieger, siegerSlot);
+            RennEndeRpc(sieger, siegerName);
         }
 
         [Rpc(SendTo.Everyone)]
-        private void RennEndeRpc(ulong sieger, int siegerSlot)
+        private void RennEndeRpc(ulong sieger, string siegerName)
         {
             if (m_ErgebnisGezeigt) return;
             m_ErgebnisGezeigt = true;
@@ -372,7 +437,7 @@ namespace TopDownRace
             else
             {
                 gewonnen = sieger == NetworkManager.LocalClientId;
-                titel = gewonnen ? "Sieg!" : SpielerFarben.Name(siegerSlot) + " gewinnt";
+                titel = gewonnen ? "Sieg!" : siegerName + " gewinnt";
             }
 
             m_WonRace = gewonnen;

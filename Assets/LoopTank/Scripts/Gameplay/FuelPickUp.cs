@@ -34,7 +34,10 @@ namespace TopDownRace
             m_SpriteRenderer = GetComponent<SpriteRenderer>();
         }
 
-        private void OnTriggerEnter2D(Collider2D other)
+        private void OnTriggerEnter2D(Collider2D other) => Einsammeln(other.gameObject);
+        private void OnTriggerEnter(Collider other) => Einsammeln(other.gameObject);
+
+        private void Einsammeln(GameObject other)
         {
             if (m_IsPickedUp || !other.CompareTag("Player")) return;
 

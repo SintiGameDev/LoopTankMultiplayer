@@ -4,8 +4,8 @@ using UnityEngine;
 /// <summary>
 /// Spielt eine aufgezeichnete Runde in Endlosschleife ab. Die Wiedergabe haengt an der
 /// gemeinsamen Serverzeit, damit ein Ghost bei allen Spielern an derselben Stelle ist.
+/// Funktioniert mit Rigidbody2D (2D-Szene, Ebene XY) und Rigidbody (3D-Szene, Ebene XZ).
 /// </summary>
-[RequireComponent(typeof(Rigidbody2D))]
 public class GhostReplay : MonoBehaviour
 {
     public LapData source;
@@ -14,21 +14,39 @@ public class GhostReplay : MonoBehaviour
     /// <summary>Client-ID des Spielers, dessen Runde dieser Ghost nachfaehrt.</summary>
     public ulong BesitzerId { get; private set; }
 
-    [Tooltip("Die Stärke des Rückstoßes, wenn der GhostTank von einer Kugel getroffen wird.")]
+    [Tooltip("Die Stärke des Rückstoßes, wenn der GhostTank von einer Kugel getroffen wird (nur 2D).")]
     public float bulletImpactForce = 50f;
 
-    [Tooltip("Die Dauer in Sekunden, für die der GhostTank vom Replay abweicht, nachdem er getroffen wurde.")]
+    [Tooltip("Die Dauer in Sekunden, für die der GhostTank vom Replay abweicht, nachdem er getroffen wurde (nur 2D).")]
     public float impactDuration = 0.2f;
 
     private bool isInImpact = false;
     private float impactTimer = 0f;
 
-    Rigidbody2D rb;
+    Rigidbody2D rb2D;
+    Rigidbody rb3D;
+    float hoehe;               // 3D: Y-Position, auf der der Ghost faehrt
     int i;                     // Index des naechsten Frames
     float t;                   // Replay-Zeit
     double startZeit = -1;     // Serverzeit des Starts; < 0 = lokale Zeit benutzen
 
-    void Awake() { rb = GetComponent<Rigidbody2D>(); }
+    void Awake()
+    {
+        rb2D = GetComponent<Rigidbody2D>();
+        rb3D = GetComponent<Rigidbody>();
+        hoehe = transform.position.y;
+    }
+
+    /// <summary>Weltposition zu einem aufgezeichneten Punkt, passend zur Physik des Ghost-Prefabs.</summary>
+    public static Vector3 WeltPosition(Vector2 ebenenPunkt, bool dreiD, float hoehe)
+    {
+        return dreiD ? new Vector3(ebenenPunkt.x, hoehe, ebenenPunkt.y) : new Vector3(ebenenPunkt.x, ebenenPunkt.y, 0f);
+    }
+
+    public static Quaternion WeltDrehung(float winkel, bool dreiD)
+    {
+        return dreiD ? Quaternion.Euler(0f, winkel, 0f) : Quaternion.Euler(0f, 0f, winkel);
+    }
 
     public void Play(LapData lap, ulong besitzerId = 0, double startServerZeit = -1)
     {
@@ -39,9 +57,7 @@ public class GhostReplay : MonoBehaviour
 
         i = 1;
         t = 0f;
-        var f0 = source.frames[0];
-        rb.position = f0.pos;
-        rb.rotation = f0.rotZ;
+        Setzen(source.frames[0].pos, source.frames[0].rotZ, true);
         playing = true;
         gameObject.SetActive(true);
         isInImpact = false;
@@ -52,6 +68,27 @@ public class GhostReplay : MonoBehaviour
         playing = false;
         gameObject.SetActive(false);
         isInImpact = false;
+    }
+
+    private void Setzen(Vector2 pos, float winkel, bool sofort)
+    {
+        if (rb2D != null)
+        {
+            if (sofort) { rb2D.position = pos; rb2D.rotation = winkel; }
+            else { rb2D.MovePosition(pos); rb2D.MoveRotation(winkel); }
+        }
+        else if (rb3D != null)
+        {
+            // Aufgezeichnet ist nur die Lage in der Ebene. Die Hoehe kommt von der Strecke; die
+            // bisherige Hoehe entscheidet an einer Bruecke, ob der Ghost oben oder unten faehrt.
+            var strecke = TopDownRace.StreckenGenerator.Aktiv;
+            if (strecke != null && strecke.BodenHoehe(WeltPosition(pos, true, hoehe), out float boden, out _)) hoehe = boden;
+
+            Vector3 welt = WeltPosition(pos, true, hoehe);
+            Quaternion drehung = WeltDrehung(winkel, true);
+            if (sofort) { rb3D.position = welt; rb3D.rotation = drehung; transform.SetPositionAndRotation(welt, drehung); }
+            else { rb3D.MovePosition(welt); rb3D.MoveRotation(drehung); }
+        }
     }
 
     void FixedUpdate()
@@ -87,9 +124,7 @@ public class GhostReplay : MonoBehaviour
         if (t < vorher)
         {
             i = 1;
-            var f0 = source.frames[0];
-            rb.position = f0.pos;
-            rb.rotation = f0.rotZ;
+            Setzen(source.frames[0].pos, source.frames[0].rotZ, true);
             return;
         }
 
@@ -99,16 +134,12 @@ public class GhostReplay : MonoBehaviour
         var b = source.frames[i];
 
         float seg = Mathf.InverseLerp(a.t, b.t, t);
-        Vector2 pos = Vector2.Lerp(a.pos, b.pos, seg);
-        float rot = Mathf.LerpAngle(a.rotZ, b.rotZ, seg);
-
-        rb.MovePosition(pos);
-        rb.MoveRotation(rot);
+        Setzen(Vector2.Lerp(a.pos, b.pos, seg), Mathf.LerpAngle(a.rotZ, b.rotZ, seg), false);
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.CompareTag("Bullet"))
+        if (rb2D != null && collision.gameObject.CompareTag("Bullet"))
         {
             if (isInImpact) return;
 
@@ -116,7 +147,7 @@ public class GhostReplay : MonoBehaviour
             impactTimer = impactDuration;
 
             Vector2 pushDirection = collision.contacts[0].normal;
-            rb.AddForce(pushDirection * bulletImpactForce, ForceMode2D.Impulse);
+            rb2D.AddForce(pushDirection * bulletImpactForce, ForceMode2D.Impulse);
 
             Destroy(collision.gameObject);
         }

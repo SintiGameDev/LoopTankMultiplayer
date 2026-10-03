@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 namespace TopDownRace
@@ -90,13 +92,31 @@ namespace TopDownRace
         private bool m_IsBoosting = false;
 
         // --- NETZWERK ---
-        /// <summary>Startplatz 0..3, bestimmt Startposition und Farbe. Setzt der Host.</summary>
+        /// <summary>Startplatz 0..3. Setzt der Host.</summary>
         public NetworkVariable<int> SpielerSlot = new NetworkVariable<int>(0);
+
+        /// <summary>Gewaehlte Farbe (Nummer in SpielerFarben). Setzt der Host aus dem Profil der Lobby.</summary>
+        public NetworkVariable<int> FarbIndex = new NetworkVariable<int>(0);
+
+        /// <summary>Gewaehlter Anzeigename. Setzt der Host aus dem Profil der Lobby.</summary>
+        public NetworkVariable<FixedString64Bytes> SpielerName = new NetworkVariable<FixedString64Bytes>();
+
+        /// <summary>Anzeigename, mit Rueckfall auf "Spieler N".</summary>
+        public string AnzeigeName => SpielerName.Value.Length > 0 ? SpielerName.Value.ToString() : SpielerFarben.StandardName(SpielerSlot.Value);
+
+        /// <summary>Startplatz dieses Panzers. Setzt der Host; StartGesetzt kommt zuletzt und loest das Aufstellen aus.</summary>
+        public NetworkVariable<Vector3> StartPosition = new NetworkVariable<Vector3>();
+        public NetworkVariable<Quaternion> StartDrehung = new NetworkVariable<Quaternion>(Quaternion.identity);
+        public NetworkVariable<bool> StartGesetzt = new NetworkVariable<bool>(false);
 
         /// <summary>Ob der Spieler noch im Rennen ist. Setzt der Host.</summary>
         public NetworkVariable<bool> Lebt = new NetworkVariable<bool>(true);
 
         /// <summary>Gefahrene Runden, fuer die Anzeige bei allen. Schreibt der Besitzer.</summary>
+        /// <summary>Blickrichtung des Turms (Welt-Drehung um Y), nur in 3D benutzt. Schreibt der Besitzer.</summary>
+        public NetworkVariable<float> TurmWinkel = new NetworkVariable<float>(
+            0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
         public NetworkVariable<int> Runden = new NetworkVariable<int>(
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
@@ -109,25 +129,29 @@ namespace TopDownRace
         private int m_EmpfangAnzahl;
 
         // Checkpoints, die seit der letzten Zielueberquerung passiert wurden.
-        private readonly HashSet<int> m_PassierteCheckpoints = new HashSet<int>();
+        private int m_ZwischenIndex;
         private bool m_ErsteUeberquerung = true;
 
-        private CarPhysics m_CarPhysics;
+        private FahrPhysik m_CarPhysics;
 
         private Transform m_TankTop;
-        private bool m_CollisionsIgnored = false;
+        private PanzerTurm3D m_Turm;
+        private float m_NaechsteTurmSendung;
+        private float m_LetzteSchutzZeit = -10f;
 
         public override void OnNetworkSpawn()
         {
             if (!Alle.Contains(this)) Alle.Add(this);
 
-            SpielerSlot.OnValueChanged += OnSlotGeaendert;
+            FarbIndex.OnValueChanged += OnSlotGeaendert;
+            StartGesetzt.OnValueChanged += OnStartGesetzt;
             Lebt.OnValueChanged += OnLebtGeaendert;
             FarbeAnwenden();
 
             if (IsOwner)
             {
                 m_Current = this;
+                AufStartplatzSetzen(true);   // falls der Startplatz schon mit dem Spawn ankam
 
                 var recorder = GetComponent<LapRecorder>();
                 if (recorder == null) recorder = gameObject.AddComponent<LapRecorder>();
@@ -140,7 +164,7 @@ namespace TopDownRace
             else
             {
                 // Fremde Panzer werden nur angezeigt: keine eigene Physik-Steuerung, keine Aufnahme.
-                var physik = GetComponent<CarPhysics>();
+                var physik = GetComponent<FahrPhysik>();
                 if (physik != null) physik.enabled = false;
                 var recorder = GetComponent<LapRecorder>();
                 if (recorder != null) recorder.enabled = false;
@@ -153,7 +177,8 @@ namespace TopDownRace
 
         public override void OnNetworkDespawn()
         {
-            SpielerSlot.OnValueChanged -= OnSlotGeaendert;
+            FarbIndex.OnValueChanged -= OnSlotGeaendert;
+            StartGesetzt.OnValueChanged -= OnStartGesetzt;
             Lebt.OnValueChanged -= OnLebtGeaendert;
 
             Alle.Remove(this);
@@ -168,17 +193,27 @@ namespace TopDownRace
             m_CurrentCheckpoint = 1;
             m_Speed = 80;
 
+            // Direktes Kind (2D-Prefab) oder tiefer in der Hierarchie (3D: unter dem Optik-Objekt).
             m_TankTop = transform.Find("TankTop");
+            if (m_TankTop == null)
+            {
+                foreach (Transform kind in GetComponentsInChildren<Transform>(true))
+                {
+                    if (kind.name == "TankTop") { m_TankTop = kind; break; }
+                }
+            }
+
+            m_Turm = GetComponent<PanzerTurm3D>();
 
             if (m_TankTop == null)
             {
                 Debug.LogError("TankTop-Objekt nicht gefunden! Stelle sicher, dass ein Kindobjekt mit dem Namen 'TankTop' existiert.", this);
             }
 
-            m_CarPhysics = GetComponent<CarPhysics>();
+            m_CarPhysics = GetComponent<FahrPhysik>();
             if (m_CarPhysics == null)
             {
-                Debug.LogError("CarPhysics-Komponente nicht gefunden! Kann Geschwindigkeit nicht anpassen.", this);
+                Debug.LogError("FahrPhysik-Komponente (CarPhysics oder CarPhysics3D) nicht gefunden! Kann Geschwindigkeit nicht anpassen.", this);
             }
             else
             {
@@ -244,15 +279,39 @@ namespace TopDownRace
             }
         }
 
-        private void OnTriggerEnter2D(Collider2D collision)
+        // Die Unity-Callbacks gibt es doppelt (2D- und 3D-Physik); beide landen in derselben Logik,
+        // damit der Panzer in der 2D- und in der 3D-Rennszene gleich funktioniert.
+        //
+        // Geprueft wird beim Eintreten UND in jedem Physikschritt, solange sich etwas ueberlappt.
+        // Frueher zaehlte nur das Eintreten: Wer in diesem Moment geschuetzt war (Startzone oder
+        // frisch erschienener Ghost), wurde danach nie wieder geprueft und fuhr unbeschadet hindurch.
+        private void OnTriggerEnter2D(Collider2D collision) => TriggerBeruehrt(collision.gameObject);
+        private void OnTriggerEnter(Collider collision) => TriggerBeruehrt(collision.gameObject);
+        private void OnTriggerStay2D(Collider2D collision) => TriggerBeruehrt(collision.gameObject);
+        private void OnTriggerStay(Collider collision) => TriggerBeruehrt(collision.gameObject);
+        private void OnCollisionEnter2D(Collision2D collision) => KollisionsSound();
+        private void OnCollisionEnter(Collision collision) => KollisionsSound();
+
+        /// <summary>True, solange der Panzer in einer Schutzzone steht (Tag "CollisionIgnorer").</summary>
+        private bool InSchutzzone => Time.time - m_LetzteSchutzZeit < 0.12f;
+
+        private void TriggerBeruehrt(GameObject anderes)
         {
+            // Schutzzone: Zeitstempel statt Ein/Aus-Schalter. Ein Schalter bliebe haengen, wenn
+            // die Zone verschwindet, waehrend man drinsteht (dann kommt kein Exit-Ereignis mehr).
+            if (anderes.CompareTag("CollisionIgnorer"))
+            {
+                m_LetzteSchutzZeit = Time.time;
+                return;
+            }
+
             // Jeder Client prueft nur den eigenen Panzer.
             if (!IsOwner || !m_Control || !Lebt.Value) return;
-            if (!collision.CompareTag("Ghost") || m_CollisionsIgnored) return;
-            if (HasTagInHierarchy(collision.gameObject, "CollisionIgnorer")) return;
-            if (GameControl.m_Current == null) return;
+            if (!anderes.CompareTag("Ghost") || InSchutzzone) return;
+            if (HasTagInHierarchy(anderes, "CollisionIgnorer")) return;   // Ghost ist gerade erst erschienen
+            if (GameControl.m_Current == null || !GameControl.m_Current.m_StartRace) return;
 
-            var ghost = collision.GetComponentInParent<GhostReplay>();
+            var ghost = anderes.GetComponentInParent<GhostReplay>();
             if (ghost != null && !GameControl.m_Current.IstGhostToedlich(ghost.BesitzerId)) return;
 
             Debug.Log("Kollision mit Ghost! Spieler scheidet aus.");
@@ -270,7 +329,7 @@ namespace TopDownRace
             return false;
         }
 
-        private void OnCollisionEnter2D(Collision2D collision)
+        private void KollisionsSound()
         {
             if (m_CollisionSoundClips != null && m_CollisionSoundClips.Count > 0 && m_CollisionAudioSource != null)
             {
@@ -280,29 +339,25 @@ namespace TopDownRace
             }
         }
 
-        private void OnTriggerStay2D(Collider2D collision)
-        {
-            if (collision.CompareTag("CollisionIgnorer"))
-            {
-                m_CollisionsIgnored = true;
-            }
-        }
-
-        private void OnTriggerExit2D(Collider2D collision)
-        {
-            if (collision.CompareTag("CollisionIgnorer"))
-            {
-                m_CollisionsIgnored = false;
-            }
-        }
-
         void Update()
         {
-            if (!IsOwner || m_CarPhysics == null) return;
+            if (!IsOwner)
+            {
+                // Fremde Panzer: Turm auf den uebertragenen Winkel ausrichten.
+                if (m_Turm != null) m_Turm.ZielWinkel = TurmWinkel.Value;
+                return;
+            }
+            if (m_CarPhysics == null) return;
 
             float verticalInput = Input.GetAxisRaw("Vertical");
             float horizontalInput = Input.GetAxisRaw("Horizontal");
             float tankTopRotationInput = Input.GetAxisRaw("TankTopHorizontal");
+
+            // Rohe Eingabe fuer die 3D-Fahrphysik. Ohne Kontrolle (Countdown, ausgeschieden) steht sie auf 0.
+            bool darfFahren = m_Control && GameControl.m_Current != null && GameControl.m_Current.m_StartRace;
+            m_CarPhysics.m_Gas = darfFahren ? verticalInput : 0f;
+            m_CarPhysics.m_Lenkung = darfFahren ? horizontalInput : 0f;
+            m_CarPhysics.m_Drift = darfFahren && m_CarPhysics.KannDriften && Input.GetKey(KeyCode.Space);
 
             if (GameControl.m_Current != null && GameControl.m_Current.m_StartRace)
             {
@@ -319,7 +374,8 @@ namespace TopDownRace
                         m_CarPhysics.m_InputSteer = -horizontalInput * m_RotationSpeed;
                     }
 
-                    bool spacePressed = Input.GetKey(KeyCode.Space);
+                    // Kann die Physik driften (3D), liegt der Drift auf der Leertaste und der Boost auf Shift.
+                    bool spacePressed = Input.GetKey(m_CarPhysics.KannDriften ? KeyCode.LeftShift : KeyCode.Space);
 
                     if (spacePressed)
                     {
@@ -373,11 +429,17 @@ namespace TopDownRace
 
             if (m_TankTop != null)
             {
-                m_TankTop.Rotate(0, 0, -tankTopRotationInput * m_TankTopRotationSpeed * Time.deltaTime);
+                // In 3D richtet PanzerTurm3D den Turm nach der Kamera aus; die Pfeiltasten gelten nur fuer 2D.
+                if (m_Turm == null)
+                    m_TankTop.Rotate(m_CarPhysics.TurmDrehung(tankTopRotationInput * m_TankTopRotationSpeed * Time.deltaTime));
+                else
+                    TurmWinkelSenden();
+
+                bool turmDreht = m_Turm != null ? m_Turm.DrehAnteil > 0.08f : Mathf.Abs(tankTopRotationInput) > 0.01f;
 
                 if (m_TankTopRotationAudioSource != null)
                 {
-                    if (Mathf.Abs(tankTopRotationInput) > 0.01f && m_Control)
+                    if (turmDreht && m_Control)
                     {
                         m_TankTopRotationAudioSource.volume = Mathf.MoveTowards(m_TankTopRotationAudioSource.volume, m_TankTopRotationVolume, m_TankTopFadeSpeed * Time.deltaTime);
                     }
@@ -388,9 +450,9 @@ namespace TopDownRace
                 }
             }
 
-            if (m_AccelerationAudioSource != null && m_CarPhysics.m_Body != null)
+            if (m_AccelerationAudioSource != null)
             {
-                float currentSpeed = m_CarPhysics.m_Body.linearVelocity.magnitude;
+                float currentSpeed = m_CarPhysics.Tempo;
                 float speedNormalized = 0f;
                 if (m_Speed > 0)
                 {
@@ -402,28 +464,140 @@ namespace TopDownRace
         }
 
         // ------------------------------------------------------------------
-        // Runden / Checkpoints
+        // Startplatz
         // ------------------------------------------------------------------
 
-        public void CheckpointPassiert(int id)
+        /// <summary>
+        /// Stellt den eigenen Panzer auf seinen Startplatz. Der Host legt den Platz fest, aber nur
+        /// der Besitzer darf seinen Panzer bewegen. Deshalb setzt sich jeder Client selbst dorthin.
+        /// </summary>
+        /// <param name="sprung">True: allen anderen mitteilen, dass der Panzer springt, statt die Strecke zu interpolieren.</param>
+        private void AufStartplatzSetzen(bool sprung)
         {
-            m_PassierteCheckpoints.Add(id);
+            if (!IsOwner || !StartGesetzt.Value) return;
+
+            var physik = GetComponent<FahrPhysik>();
+            if (physik != null) physik.Anhalten();
+
+            Vector3 position = StartPosition.Value;
+            Quaternion drehung = StartDrehung.Value;
+
+            var body = GetComponent<Rigidbody>();
+            if (body != null)
+            {
+                if (!body.isKinematic)
+                {
+                    body.linearVelocity = Vector3.zero;
+                    body.angularVelocity = Vector3.zero;
+                }
+                body.position = position;
+                body.rotation = drehung;
+            }
+            var body2D = GetComponent<Rigidbody2D>();
+            if (body2D != null)
+            {
+                body2D.linearVelocity = Vector2.zero;
+                body2D.angularVelocity = 0f;
+                body2D.position = position;
+                body2D.rotation = drehung.eulerAngles.z;
+            }
+            transform.SetPositionAndRotation(position, drehung);
+
+            if (sprung)
+            {
+                var netz = GetComponent<NetworkTransform>();
+                // Teleport ist nur erlaubt, sobald die Netzwerk-Komponente weiss, dass wir bestimmen duerfen.
+                if (netz != null && netz.CanCommitToTransform) netz.Teleport(position, drehung, transform.localScale);
+                Debug.Log("[Start] " + AnzeigeName + " (Client " + OwnerClientId + ", Platz " + (SpielerSlot.Value + 1) + ") stellt sich auf " + position);
+            }
+        }
+
+        private bool m_StartGemeldet;
+
+        private void LateUpdate()
+        {
+            if (!IsSpawned || !StartGesetzt.Value || GameControl.m_Current == null) return;
+            bool gestartet = GameControl.m_Current.m_StartRace;
+
+            if (!IsOwner)
+            {
+                // Fremde Panzer stehen bis zum Start auf ihrem Platz, egal was die Netzwerk-Position
+                // gerade meldet. Der Platz ist allen bekannt (StartPosition), deshalb sieht jeder
+                // dieselbe saubere Aufstellung, auch wenn die erste Positionsmeldung noch fehlt.
+                if (!gestartet) transform.SetPositionAndRotation(StartPosition.Value, StartDrehung.Value);
+                return;
+            }
+
+            // Eigener Panzer: im Moment des Starts die Position noch einmal als Sprung an alle
+            // melden. Danach gilt fuer alle sicher derselbe Ausgangspunkt.
+            if (gestartet && !m_StartGemeldet)
+            {
+                m_StartGemeldet = true;
+                var netz = GetComponent<NetworkTransform>();
+                if (netz != null && netz.CanCommitToTransform) netz.Teleport(transform.position, transform.rotation, transform.localScale);
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            // Bis zum Start haelt jeder seinen Panzer auf dem Startplatz fest. Ohne das kann er
+            // schon vor dem Countdown verrutschen: durch die Physik, durch einen Nachbarn oder
+            // weil die Position beim Spawnen und die erste Netzwerk-Meldung nicht zusammenpassen.
+            if (!IsOwner || !IsSpawned || !StartGesetzt.Value) return;
+            if (GameControl.m_Current == null || GameControl.m_Current.m_StartRace) return;
+
+            bool verrutscht = (transform.position - StartPosition.Value).sqrMagnitude > 0.0004f
+                || Quaternion.Angle(transform.rotation, StartDrehung.Value) > 0.2f;
+            if (verrutscht) AufStartplatzSetzen(false);
+        }
+
+        // ------------------------------------------------------------------
+        // Runden / Checkpoints
+        // ------------------------------------------------------------------
+        /// <summary>Schickt die Turmrichtung hoechstens 15-mal pro Sekunde und nur bei spuerbarer Aenderung.</summary>
+        private void TurmWinkelSenden()
+        {
+            if (Time.unscaledTime < m_NaechsteTurmSendung) return;
+            if (Mathf.Abs(Mathf.DeltaAngle(TurmWinkel.Value, m_Turm.ZielWinkel)) < 1f) return;
+
+            m_NaechsteTurmSendung = Time.unscaledTime + 1f / 15f;
+            TurmWinkel.Value = m_Turm.ZielWinkel;
+        }
+
+
+        /// <summary>Wie viele Zwischen-Checkpoints in dieser Runde schon in der richtigen Reihenfolge durchfahren sind.</summary>
+        public int ZwischenIndex => m_ZwischenIndex;
+
+        /// <summary>True, solange die allererste Zielueberquerung nach dem Start noch aussteht.</summary>
+        public bool VorErsterUeberquerung => m_ErsteUeberquerung;
+
+        /// <summary>
+        /// Zaehlt einen Zwischen-Checkpoint nur, wenn er als naechster an der Reihe ist.
+        /// Alle anderen (ausgelassen, doppelt, rueckwaerts) werden ignoriert.
+        /// </summary>
+        public bool CheckpointPassiert(int id)
+        {
+            int[] reihenfolge = RaceTrackControl.m_Main.ZwischenIds;
+            if (m_ZwischenIndex >= reihenfolge.Length || reihenfolge[m_ZwischenIndex] != id) return false;
+
+            m_ZwischenIndex++;
             m_CurrentCheckpoint = id + 1;
+            return true;
         }
 
         /// <summary>
-        /// Eine Zielueberquerung zaehlt nur, wenn seit der letzten alle Zwischen-Checkpoints
-        /// passiert wurden. Die allererste Ueberquerung direkt nach dem Start zaehlt immer.
+        /// Eine Zielueberquerung zaehlt nur, wenn seit der letzten alle Zwischen-Checkpoints an der
+        /// Reihe waren. Die allererste Ueberquerung direkt nach dem Start zaehlt immer.
         /// </summary>
-        public bool DarfRundeBeenden(int benoetigteCheckpoints)
+        public bool DarfRundeBeenden()
         {
-            return m_ErsteUeberquerung || m_PassierteCheckpoints.Count >= benoetigteCheckpoints;
+            return m_ErsteUeberquerung || m_ZwischenIndex >= RaceTrackControl.m_Main.BenoetigteCheckpoints;
         }
 
         public void RundeBeendet(int gefahreneRunden)
         {
             m_ErsteUeberquerung = false;
-            m_PassierteCheckpoints.Clear();
+            m_ZwischenIndex = 0;
             m_CurrentCheckpoint = 1;
             Runden.Value = gefahreneRunden;
         }
@@ -491,7 +665,7 @@ namespace TopDownRace
             m_EmpfangId = -1;
 
             if (Lebt.Value && GhostManager.Instance != null)
-                GhostManager.Instance.GhostStarten(OwnerClientId, SpielerSlot.Value, punkte, k_GhostIntervall, startZeit);
+                GhostManager.Instance.GhostStarten(OwnerClientId, FarbIndex.Value, punkte, k_GhostIntervall, startZeit);
         }
 
         // ------------------------------------------------------------------
@@ -499,6 +673,8 @@ namespace TopDownRace
         // ------------------------------------------------------------------
 
         private void OnSlotGeaendert(int alt, int neu) => FarbeAnwenden();
+
+        private void OnStartGesetzt(bool alt, bool neu) => AufStartplatzSetzen(true);
 
         private void OnLebtGeaendert(bool alt, bool neu)
         {
@@ -513,12 +689,7 @@ namespace TopDownRace
 
         private void FarbeAnwenden()
         {
-            Color farbe = SpielerFarben.Farbe(SpielerSlot.Value);
-            foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true))
-            {
-                if (sr.CompareTag("TankBody") || sr.CompareTag("TankTop"))
-                    sr.color = new Color(farbe.r, farbe.g, farbe.b, sr.color.a);
-            }
+            SpielerFarben.Einfaerben(gameObject, SpielerFarben.Farbe(FarbIndex.Value), false);
         }
 
         /// <summary>Blendet einen ausgeschiedenen Panzer bei allen aus, ohne ihn zu despawnen.</summary>
@@ -526,16 +697,13 @@ namespace TopDownRace
         {
             foreach (var r in GetComponentsInChildren<Renderer>(true)) r.enabled = sichtbar;
             foreach (var c in GetComponentsInChildren<Collider2D>(true)) c.enabled = sichtbar;
+            foreach (var c in GetComponentsInChildren<Collider>(true)) c.enabled = sichtbar;
             foreach (var a in GetComponents<AudioSource>()) a.mute = !sichtbar;
 
             if (IsOwner)
             {
-                var body = GetComponent<Rigidbody2D>();
-                if (body != null)
-                {
-                    body.linearVelocity = Vector2.zero;
-                    body.angularVelocity = 0f;
-                }
+                var physik = GetComponent<FahrPhysik>();
+                if (physik != null) physik.Anhalten();
             }
         }
     }

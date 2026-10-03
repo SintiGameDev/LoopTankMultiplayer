@@ -8,6 +8,14 @@ namespace TopDownRace
     {
         public static void Zeigen(bool gewonnen, string titel, int runden)
         {
+            // Das neue HUD bringt seinen eigenen Ergebnis-Bildschirm mit. Die alten win/lose-Fenster
+            // bleiben nur als Rueckfall fuer Szenen ohne RennHud.
+            if (RennHud.Instanz != null)
+            {
+                RennHud.Instanz.ErgebnisZeigen(gewonnen, titel, runden);
+                return;
+            }
+
             if (UISystem.m_Main == null) return;
 
             string name = gewonnen ? "win-ui" : "lose-ui";

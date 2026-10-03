@@ -1,3 +1,4 @@
+using TopDownRace;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -11,7 +12,18 @@ using UnityEngine.SceneManagement;
 public class NetzwerkSitzung : MonoBehaviour
 {
     public const string MenueSzene = "MainMenu";
-    public const string RennSzene = "Race";
+    public const string RennSzene2D = "Race";
+    public const string RennSzene3D = "Race3D";
+
+    /// <summary>Welche Rennszene der Host laedt. Standard ist 3D, sobald die Szene im Build ist.</summary>
+    public static string RennSzene
+    {
+        get => s_RennSzene ?? (Hat3D ? RennSzene3D : RennSzene2D);
+        set => s_RennSzene = value;
+    }
+    private static string s_RennSzene;
+
+    public static bool Hat3D => Application.CanStreamedLevelBeLoaded(RennSzene3D);
     public const int MaxSpieler = 4;
 
     /// <summary>Meldung, die das Menue nach einer unfreiwilligen Rueckkehr anzeigt.</summary>
@@ -41,12 +53,45 @@ public class NetzwerkSitzung : MonoBehaviour
         m_Manager.NetworkConfig.ConnectionApproval = true;
         m_Manager.ConnectionApprovalCallback = BeitrittPruefen;
         m_Manager.OnClientStopped += OnClientGestoppt;
+        m_Manager.OnServerStarted += SzenenEreignisseAbonnieren;
+        m_Manager.OnClientStarted += SzenenEreignisseAbonnieren;
     }
 
     private void OnDestroy()
     {
         if (m_Manager != null)
+        {
             m_Manager.OnClientStopped -= OnClientGestoppt;
+            m_Manager.OnServerStarted -= SzenenEreignisseAbonnieren;
+            m_Manager.OnClientStarted -= SzenenEreignisseAbonnieren;
+        }
+    }
+
+    /// <summary>
+    /// Der Szenenmanager existiert erst, sobald Host oder Client laufen. Ab dann legt jede
+    /// Lade-Nachricht den Ladebildschirm ueber das Bild: bei den Clients, wenn der Host das Rennen
+    /// startet, und bei allen, wenn der Host eine neue Runde laedt.
+    /// </summary>
+    private void SzenenEreignisseAbonnieren()
+    {
+        if (m_Manager == null || m_Manager.SceneManager == null) return;
+        m_Manager.SceneManager.OnSceneEvent -= OnSzenenEreignis;
+        m_Manager.SceneManager.OnSceneEvent += OnSzenenEreignis;
+
+        // Namen und Farben der Spieler gehoeren zur Sitzung und beginnen mit ihr.
+        SpielerProfil.Starten(m_Manager);
+    }
+
+    private void OnSzenenEreignis(SceneEvent ereignis)
+    {
+        if (ereignis.SceneEventType == SceneEventType.Load)
+            UiUebergang.Zu("Lade Rennen ...");
+    }
+
+    /// <summary>Wechselt hinter dem Ladebildschirm ins Menue. Dort gibt LobbyManager das Bild wieder frei.</summary>
+    private static void InsMenue()
+    {
+        UiUebergang.Zu("Zurück zum Menü ...", () => SceneManager.LoadScene(MenueSzene));
     }
 
     private void BeitrittPruefen(NetworkManager.ConnectionApprovalRequest anfrage, NetworkManager.ConnectionApprovalResponse antwort)
@@ -92,7 +137,7 @@ public class NetzwerkSitzung : MonoBehaviour
             LetzteMeldung = string.IsNullOrEmpty(grund) ? "Verbindung zum Host verloren." : grund;
         }
 
-        SceneManager.LoadScene(MenueSzene);
+        InsMenue();
     }
 
     /// <summary>Trennt die Verbindung und kehrt ins Menue zurueck.</summary>
@@ -107,7 +152,7 @@ public class NetzwerkSitzung : MonoBehaviour
         }
 
         if (SceneManager.GetActiveScene().name != MenueSzene)
-            SceneManager.LoadScene(MenueSzene);
+            InsMenue();
     }
 
     public static bool IstAktiv => NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;

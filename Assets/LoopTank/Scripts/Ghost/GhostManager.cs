@@ -49,6 +49,9 @@ namespace TopDownRace
         [Tooltip("Deckkraft eigener Ghosts, wenn sie für einen selbst harmlos sind.")]
         [Range(0.1f, 1f)]
         public float harmloseGhostDeckkraft = 0.35f;
+        [Tooltip("Deckkraft tödlicher Ghosts in der 3D-Szene.")]
+        [Range(0.1f, 1f)]
+        public float toedlicheGhostDeckkraft3D = 0.75f;
 
         [Header("Sounds")]
         [Tooltip("Der Sound, der abgespielt wird, wenn eine Runde erfolgreich beendet wurde.")]
@@ -209,7 +212,7 @@ namespace TopDownRace
         /// Erzeugt den Ghost eines Spielers aus den uebertragenen Punkten (x, y, Drehung).
         /// Laeuft auf jedem Client, auch bei dem, dessen Runde es ist.
         /// </summary>
-        public void GhostStarten(ulong besitzerId, int spielerSlot, Vector3[] punkte, float intervall, double startZeit)
+        public void GhostStarten(ulong besitzerId, int farbIndex, Vector3[] punkte, float intervall, double startZeit)
         {
             if (ghostPrefab == null || punkte == null || punkte.Length < 2) return;
 
@@ -220,10 +223,12 @@ namespace TopDownRace
             }
             lap.lapTime = lap.frames[lap.frames.Count - 1].t;
 
+            // Das Ghost-Prefab bestimmt, ob auf der 2D-Ebene (XY) oder der 3D-Ebene (XZ) gefahren wird.
+            bool dreiD = ghostPrefab.GetComponent<Rigidbody>() != null;
             var go = Instantiate(
                 ghostPrefab,
-                new Vector3(punkte[0].x, punkte[0].y, 0f),
-                Quaternion.Euler(0f, 0f, punkte[0].z),
+                GhostReplay.WeltPosition(punkte[0], dreiD, ghostPrefab.transform.position.y),
+                GhostReplay.WeltDrehung(punkte[0].z, dreiD),
                 ghostParent
             );
             var ghost = go.GetComponent<GhostReplay>();
@@ -237,12 +242,10 @@ namespace TopDownRace
             }
 
             bool toedlich = GameControl.m_Current == null || GameControl.m_Current.IstGhostToedlich(besitzerId);
-            Color farbe = SpielerFarben.Farbe(spielerSlot);
-            farbe.a = toedlich ? 1f : harmloseGhostDeckkraft;
-            foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>(true))
-            {
-                if (sr.CompareTag("TankBody") || sr.CompareTag("TankTop")) sr.color = farbe;
-            }
+            Color farbe = SpielerFarben.Farbe(farbIndex);
+            // In 3D sehen Ghosts sonst wie echte Panzer aus, deshalb sind sie dort immer leicht durchsichtig.
+            farbe.a = toedlich ? (dreiD ? toedlicheGhostDeckkraft3D : 1f) : harmloseGhostDeckkraft;
+            SpielerFarben.Einfaerben(go, farbe, true);
 
             ghost.Play(lap, besitzerId, startZeit);
             ghostInstances.Add(ghost);

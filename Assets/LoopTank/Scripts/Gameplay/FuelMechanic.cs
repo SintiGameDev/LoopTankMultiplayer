@@ -24,6 +24,8 @@ namespace TopDownRace
         // Der aktuelle Kraftstoffwert, der von anderen Skripten ausgelesen werden kann
         public float CurrentFuel { get; private set; }
 
+        public float MaxFuel => m_MaxFuel;
+
         [Header("UI Settings")]
         [Tooltip("Die TextMeshPro-Komponente, die den aktuellen Kraftstoffwert anzeigt.")]
         [SerializeField]

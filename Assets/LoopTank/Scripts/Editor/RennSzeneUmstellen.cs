@@ -208,23 +208,27 @@ public static class RennSzeneUmstellen
         }
     }
 
-    private static void BuildSettingsPruefen(List<string> bericht)
+    private const string Renn3DPfad = "Assets/LoopTank/Scenes/Race3D.unity";
+
+    /// <summary>MainMenu muss Szene 0 sein, danach die Rennszenen. Die 3D-Szene kommt dazu, sobald es sie gibt.</summary>
+    internal static void BuildSettingsPruefen(List<string> bericht)
     {
+        var soll = new List<string> { MenuePfad, RennPfad };
+        if (System.IO.File.Exists(Renn3DPfad)) soll.Add(Renn3DPfad);
+
         var szenen = EditorBuildSettings.scenes;
-        bool stimmt = szenen.Length == 2
-            && szenen[0].path == MenuePfad && szenen[0].enabled
-            && szenen[1].path == RennPfad && szenen[1].enabled;
+        bool stimmt = szenen.Length == soll.Count;
+        for (int i = 0; stimmt && i < soll.Count; i++)
+            stimmt = szenen[i].path == soll[i] && szenen[i].enabled;
         if (stimmt) return;
 
         if (!System.IO.File.Exists(MenuePfad))
             throw new System.InvalidOperationException("Die Menü-Szene fehlt. Bitte 'LoopTank > Multiplayer einrichten' ausführen.");
 
-        EditorBuildSettings.scenes = new[]
-        {
-            new EditorBuildSettingsScene(MenuePfad, true),
-            new EditorBuildSettingsScene(RennPfad, true),
-        };
-        bericht.Add("Build Settings: MainMenu (0), Race (1)");
+        var neu = new EditorBuildSettingsScene[soll.Count];
+        for (int i = 0; i < soll.Count; i++) neu[i] = new EditorBuildSettingsScene(soll[i], true);
+        EditorBuildSettings.scenes = neu;
+        if (bericht != null) bericht.Add("Build Settings: MainMenu (0), Race (1)" + (soll.Count > 2 ? ", Race3D (2)" : ""));
     }
 
     /// <summary>Stoesst die Hash-Berechnung von Netcode an. True, wenn sich der Wert geaendert hat.</summary>

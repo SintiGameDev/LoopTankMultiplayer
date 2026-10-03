@@ -24,6 +24,12 @@ public class Timer : MonoBehaviour
     public GameObject prefabToActivate;
 
     private float m_CurrentTime;
+
+    /// <summary>Verbleibende Zeit in Sekunden.</summary>
+    public float Restzeit => m_CurrentTime;
+
+    /// <summary>True, solange der Timer laeuft.</summary>
+    public bool Laeuft => timerCoroutine != null;
     private int m_LastSecondDisplayed;
 
     [Header("LeanTween Scale Animation")]

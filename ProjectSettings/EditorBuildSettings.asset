@@ -11,5 +11,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/LoopTank/Scenes/Race.unity
     guid: 7f66960b153b6164c945ec89acc80cc0
+  - enabled: 1
+    path: Assets/LoopTank/Scenes/Race3D.unity
+    guid: b8af5bb21ee63cd46b2eaf709fff241d
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

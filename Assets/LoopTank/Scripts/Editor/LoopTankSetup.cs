@@ -160,87 +160,9 @@ public static class LoopTankSetup
         netz.NetworkConfig.Prefabs.NetworkPrefabsLists.Add(liste);
         netz.RunInBackground = true;
 
-        // Oberflaeche
-        TMP_FontAsset titelSchrift = SchriftFinden("CaviarModern");
-
-        var canvasObjekt = new GameObject("Menue", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        canvasObjekt.layer = LayerMask.NameToLayer("UI");
-        var canvas = canvasObjekt.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        var scaler = canvasObjekt.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.matchWidthOrHeight = 0.5f;
-        Transform wurzel = canvasObjekt.transform;
-
-        var hintergrund = Bild(wurzel, "Hintergrund", Dunkel);
-        Strecken(hintergrund.rectTransform);
-
-        var titel = Text(wurzel, "Titel", "LoopTank", 150, titelSchrift, Akzent);
-        Platzieren(titel.rectTransform, new Vector2(0.5f, 1), new Vector2(0, -170), new Vector2(1400, 190));
-
-        // --- Startseite ---
-        var startPanel = Panel(wurzel, "StartPanel");
-        Button knopfEinzel = Knopf(startPanel, "ButtonEinzelspieler", "Einzelspieler", new Vector2(0, 130), titelSchrift);
-        Button knopfHost = Knopf(startPanel, "ButtonHost", "Host starten", new Vector2(0, 20), titelSchrift);
-
-        TMP_InputField eingabe = Eingabefeld(startPanel, "JoinCodeEingabe", "Join-Code", new Vector2(-135, -120), new Vector2(250, 90));
-        Button knopfJoin = Knopf(startPanel, "ButtonJoin", "Beitreten", new Vector2(135, -120), titelSchrift, new Vector2(250, 90));
-        Button knopfBeenden = Knopf(startPanel, "ButtonBeenden", "Beenden", new Vector2(0, -260), titelSchrift);
-        Faerben(knopfBeenden, new Color(0.30f, 0.36f, 0.46f), Color.white);
-
-        // --- Lobby ---
-        var lobbyPanel = Panel(wurzel, "LobbyPanel");
-        var lobbyTitel = Text(lobbyPanel, "LobbyTitel", "Lobby", 70, titelSchrift, Color.white);
-        Platzieren(lobbyTitel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 190), new Vector2(900, 90));
-        var codeAnzeige = Text(lobbyPanel, "JoinCodeAnzeige", "Code: ------", 96, null, Akzent);
-        Platzieren(codeAnzeige.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, 70), new Vector2(1200, 120));
-        var spielerAnzeige = Text(lobbyPanel, "SpielerAnzahlAnzeige", "Spieler: 1 / 4", 48, null, Color.white);
-        Platzieren(spielerAnzeige.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, -30), new Vector2(900, 70));
-        Button knopfStart = Knopf(lobbyPanel, "ButtonStartRace", "Rennen starten", new Vector2(0, -150), titelSchrift);
-        Button knopfVerlassen = Knopf(lobbyPanel, "ButtonStop", "Lobby verlassen", new Vector2(0, -260), titelSchrift);
-        Faerben(knopfVerlassen, new Color(0.30f, 0.36f, 0.46f), Color.white);
-        lobbyPanel.gameObject.SetActive(false);
-
-        // --- Meldungen ---
-        var fehler = Text(wurzel, "FehlerAnzeige", "", 36, null, new Color(1f, 0.35f, 0.35f));
-        Platzieren(fehler.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 150), new Vector2(1600, 60));
-        var status = Text(wurzel, "StatusAnzeige", "", 34, null, new Color(0.8f, 0.85f, 0.9f));
-        Platzieren(status.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 90), new Vector2(1600, 60));
-
-        var hinweis = Text(wurzel, "Steuerung", "W/A/S/D  fahren      Leertaste  Boost      Pfeiltasten  Turm", 26, null, new Color(0.55f, 0.62f, 0.70f));
-        Platzieren(hinweis.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 35), new Vector2(1600, 40));
-
-        // --- Netzwerk-Status oben rechts ---
-        var debugText = Text(wurzel, "DebugText", "", 24, null, Color.white);
-        debugText.alignment = TextAlignmentOptions.TopRight;
-        Platzieren(debugText.rectTransform, new Vector2(1, 1), new Vector2(-30, -30), new Vector2(420, 200));
-        debugText.rectTransform.pivot = new Vector2(1, 1);
-        debugText.rectTransform.anchoredPosition = new Vector2(-30, -30);
-
-        // --- Logik ---
-        var lobbyObjekt = new GameObject("LobbyManager");
-        var lobby = lobbyObjekt.AddComponent<LobbyManager>();
-        var so = new SerializedObject(lobby);
-        so.FindProperty("startPanel").objectReferenceValue = startPanel.gameObject;
-        so.FindProperty("buttonEinzelspieler").objectReferenceValue = knopfEinzel;
-        so.FindProperty("buttonHost").objectReferenceValue = knopfHost;
-        so.FindProperty("buttonJoin").objectReferenceValue = knopfJoin;
-        so.FindProperty("buttonBeenden").objectReferenceValue = knopfBeenden;
-        so.FindProperty("joinCodeEingabe").objectReferenceValue = eingabe;
-        so.FindProperty("lobbyPanel").objectReferenceValue = lobbyPanel.gameObject;
-        so.FindProperty("buttonStartRace").objectReferenceValue = knopfStart;
-        so.FindProperty("buttonStop").objectReferenceValue = knopfVerlassen;
-        so.FindProperty("joinCodeAnzeige").objectReferenceValue = codeAnzeige;
-        so.FindProperty("spielerAnzahlAnzeige").objectReferenceValue = spielerAnzeige;
-        so.FindProperty("statusAnzeige").objectReferenceValue = status;
-        so.FindProperty("fehlerAnzeige").objectReferenceValue = fehler;
-        so.ApplyModifiedPropertiesWithoutUndo();
-
-        var debug = lobbyObjekt.AddComponent<NetworkDebugUI>();
-        var debugSo = new SerializedObject(debug);
-        debugSo.FindProperty("debugText").objectReferenceValue = debugText;
-        debugSo.ApplyModifiedPropertiesWithoutUndo();
+        // Menue und Lobby: Die Oberflaeche baut LobbyManager beim Start selbst auf (siehe UiBau).
+        // In der Szene liegt deshalb nur das Script, keine Knoepfe und keine Verdrahtung.
+        new GameObject("LobbyManager").AddComponent<LobbyManager>();
 
         EditorSceneManager.SaveScene(szene, MenuePfad);
     }
@@ -257,11 +179,7 @@ public static class LoopTankSetup
 
     private static void BuildSettingsSetzen()
     {
-        EditorBuildSettings.scenes = new[]
-        {
-            new EditorBuildSettingsScene(MenuePfad, true),
-            new EditorBuildSettingsScene(RennPfad, true),
-        };
+        RennSzeneUmstellen.BuildSettingsPruefen(null);
     }
 
     private static void UIDataAufraeumen()
@@ -290,118 +208,5 @@ public static class LoopTankSetup
     {
         T komponente = objekt.GetComponent<T>();
         return komponente != null ? komponente : objekt.AddComponent<T>();
-    }
-
-    private static TMP_FontAsset SchriftFinden(string name)
-    {
-        foreach (string guid in AssetDatabase.FindAssets(name + " t:TMP_FontAsset"))
-        {
-            var schrift = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(AssetDatabase.GUIDToAssetPath(guid));
-            if (schrift != null) return schrift;
-        }
-        return null;
-    }
-
-    private static RectTransform Panel(Transform eltern, string name)
-    {
-        var objekt = new GameObject(name, typeof(RectTransform));
-        objekt.layer = eltern.gameObject.layer;
-        objekt.transform.SetParent(eltern, false);
-        var rect = objekt.GetComponent<RectTransform>();
-        Strecken(rect);
-        return rect;
-    }
-
-    private static Image Bild(Transform eltern, string name, Color farbe)
-    {
-        var objekt = new GameObject(name, typeof(RectTransform));
-        objekt.layer = eltern.gameObject.layer;
-        objekt.transform.SetParent(eltern, false);
-        var bild = objekt.AddComponent<Image>();
-        bild.color = farbe;
-        bild.raycastTarget = false;
-        return bild;
-    }
-
-    private static TextMeshProUGUI Text(Transform eltern, string name, string inhalt, float groesse, TMP_FontAsset schrift, Color farbe)
-    {
-        var objekt = new GameObject(name, typeof(RectTransform));
-        objekt.layer = eltern.gameObject.layer;
-        objekt.transform.SetParent(eltern, false);
-        var text = objekt.AddComponent<TextMeshProUGUI>();
-        if (schrift != null) text.font = schrift;
-        text.text = inhalt;
-        text.fontSize = groesse;
-        text.color = farbe;
-        text.alignment = TextAlignmentOptions.Center;
-        text.raycastTarget = false;
-        text.textWrappingMode = TextWrappingModes.NoWrap;
-        return text;
-    }
-
-    private static Button Knopf(Transform eltern, string name, string beschriftung, Vector2 position, TMP_FontAsset schrift, Vector2? groesse = null)
-    {
-        var bild = Bild(eltern, name, Akzent);
-        bild.raycastTarget = true;
-        bild.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
-        bild.type = Image.Type.Sliced;
-        Platzieren(bild.rectTransform, new Vector2(0.5f, 0.5f), position, groesse ?? new Vector2(520, 90));
-
-        var knopf = bild.gameObject.AddComponent<Button>();
-        knopf.targetGraphic = bild;
-
-        var text = Text(bild.transform, "Text", beschriftung, 40, schrift, Dunkel);
-        Strecken(text.rectTransform);
-        return knopf;
-    }
-
-    private static void Faerben(Button knopf, Color flaeche, Color schrift)
-    {
-        knopf.GetComponent<Image>().color = flaeche;
-        knopf.GetComponentInChildren<TextMeshProUGUI>().color = schrift;
-    }
-
-    private static TMP_InputField Eingabefeld(Transform eltern, string name, string platzhalter, Vector2 position, Vector2 groesse)
-    {
-        GameObject objekt = TMP_DefaultControls.CreateInputField(new TMP_DefaultControls.Resources
-        {
-            inputField = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/InputFieldBackground.psd")
-        });
-        objekt.name = name;
-        objekt.transform.SetParent(eltern, false);
-        foreach (Transform t in objekt.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = eltern.gameObject.layer;
-        Platzieren(objekt.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), position, groesse);
-
-        var feld = objekt.GetComponent<TMP_InputField>();
-        feld.characterLimit = 6;
-        feld.characterValidation = TMP_InputField.CharacterValidation.Alphanumeric;
-        feld.pointSize = 44;
-        feld.textComponent.alignment = TextAlignmentOptions.Center;
-        feld.textComponent.color = Dunkel;
-        if (feld.placeholder is TextMeshProUGUI hinweis)
-        {
-            hinweis.text = platzhalter;
-            hinweis.fontSize = 34;
-            hinweis.alignment = TextAlignmentOptions.Center;
-            hinweis.fontStyle = FontStyles.Normal;
-        }
-        return feld;
-    }
-
-    private static void Strecken(RectTransform rect)
-    {
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
-    }
-
-    private static void Platzieren(RectTransform rect, Vector2 anker, Vector2 position, Vector2 groesse)
-    {
-        rect.anchorMin = anker;
-        rect.anchorMax = anker;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = position;
-        rect.sizeDelta = groesse;
     }
 }
